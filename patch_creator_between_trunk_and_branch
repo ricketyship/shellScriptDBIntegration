@@ -1,0 +1,65 @@
+TagFolder=$1
+MainFolder=$2
+foldersToConsider=$3
+modifiedMainFolder=`echo $MainFolder | sed -e's/\//\\\\\\//g'`
+modifiedMainFolder="$modifiedMainFolder\/"
+modifiedTagFolder=`echo $TagFolder | sed -e's/\//\\\\\\//g'`
+modifiedTagFolder="$modifiedTagFolder\/"
+
+> rq.output
+
+if (($# == 3))
+then
+    for folder in `cat $foldersToConsider`
+    do
+        echo "Taking svn up in: $MainFolder/$folder"
+        svn up $MainFolder/$folder
+
+        echo "Running: diff -rq $TagFolder/$folder $MainFolder/$folder | grep -v '\.svn' >> rq.output"
+        diff -rq $TagFolder/$folder $MainFolder/$folder | grep -v '\.svn' >> rq.output
+    done
+else
+    diff -rq $TagFolder $MainFolder | grep -v '\.svn' >> rq.output
+fi
+
+
+grep "Only in $TagFolder" rq.output > tagNewFiles.output
+sed -i 's/:\s/\//g' tagNewFiles.output
+sed -i 's/Only in //g' tagNewFiles.output
+
+grep "Only in $MainFolder" rq.output > mainNewFiles.output
+sed -i 's/:\s/\//g' mainNewFiles.output
+sed -i 's/Only in //g' mainNewFiles.output
+sed -i "s/$modifiedMainFolder//g" mainNewFiles.output
+
+echo "Creating new files tar"
+rm -i newFiles.tar
+currentDir=`pwd`
+cd $MainFolder
+tar -cvf $currentDir/newFiles.tar `cat $currentDir/mainNewFiles.output`
+cd $currentDir
+
+grep " differ" rq.output | awk '{print $4}' > modifiedfiles.outputsed -i "s/$modifiedMainFolder//g" modifiedfiles.output
+
+echo "Creating patch file"
+> patch.output
+for file in `cat modifiedfiles.output`
+do
+    echo "Index: $file" >> patch.output
+    echo "===================================================================" >> patch.output
+    diff -u $TagFolder/$file $MainFolder/$file >> patch.output
+done
+
+sed -i "s/$modifiedMainFolder//g" patch.output
+sed -i "s/$modifiedTagFolder//g" patch.output
+
+lines=0
+lines=`wc -l tagNewFiles.output | awk '{print $1}'`
+
+echo "Completed patch creation"
+if (( $lines > 0 ))
+then
+    echo "================================IMPORATANT=================================="
+    echo "Some files were present in tag but not in trunk. Verify these manually. Refer tagNewFiles.output for the names"
+fi
+
