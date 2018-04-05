@@ -1,0 +1,31 @@
+show_as_column()
+{
+    > /tmp/parse.txt
+    i=1
+    OLDIFS="$IFS"
+
+    filename=`echo $1 | awk -F'/' '{print $NF}'`
+    linecount=`wc -l $1 | awk '{print $1}'`
+    tail -$linecount $1 > /tmp/$filename_bk.txt
+    delimiter=","
+
+    tail -1 $1
+    field_count=`tail -1 $1 | grep -o "$delimiter" | wc -l`
+
+    j=1
+    while read line
+    do
+        IFS=$delimiter
+        ary=($line)
+        IFS="$OLDIFS"
+        echo "${underline}${bold}************************************Record Number $j*********************************************${normal}" >> /tmp/parse.txt
+        for((i=0; i < $field_count; i++))
+        do
+            position=$(($i+1))
+            printf "%s:%-30s\n" "${position}" "${ary[$i]}" >> /tmp/parse.txt;
+        done
+        echo "${underline}${bold}                                                                                                 ${normal}" >> /tmp/parse.txt
+        j=$(($j+1))
+    done < /tmp/$filename_bk.txt
+    cat /tmp/parse.txt | more
+}
